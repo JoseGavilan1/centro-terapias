@@ -33,6 +33,8 @@ erDiagram
     ORGANIZATION ||--o{ WHATSAPP_MESSAGE : registra
     ORGANIZATION ||--o{ WHATSAPP_CONVERSATION : conversa
     ORGANIZATION ||--o{ WAITLIST_ENTRY : "lista de espera"
+    ORGANIZATION ||--o{ INCIDENT : incidencias
+    USER ||--o{ INCIDENT : reporta
     EVOLUTION ||--o{ DOCUMENT : adjuntos
     EVOLUTION ||--o| EVOLUTION : "corrige (amendsId)"
 ```
@@ -50,6 +52,7 @@ erDiagram
 | is_active | boolean | default true |
 | whatsapp_phone_number_id | text? UNIQUE | Módulo 6: identifica qué organización recibe un webhook entrante de Meta |
 | google_forms_url | text? | Módulo 6: enlace de admisión enviado a "Paciente nuevo" en el menú de WhatsApp |
+| waitlist_intake_token | text? UNIQUE | Módulo 7: identifica qué organización recibe un webhook entrante de `POST /webhooks/waitlist` (mismo criterio que `whatsapp_phone_number_id`, ver `modulo-07-lista-espera.md` §1.4) |
 | created_at / updated_at | timestamptz | |
 
 ### `users`
@@ -243,29 +246,69 @@ La búsqueda por nombre (`search`) se resuelve con `ILIKE` filtrado por `organiz
 | expires_at | timestamptz | vencida ⇒ se trata como `IDLE` (no se interpreta una respuesta vieja fuera de contexto) |
 | created_at / updated_at | timestamptz | |
 
-## 9. Módulos futuros — diseño de referencia
+## 9. Módulo 7 — entidades implementadas ahora
 
-Resumen de columnas clave (el detalle fino se cierra al iniciar cada módulo):
+### `waitlist_entries`
 
-- **`waitlist_entries`** (M7): datos del formulario de Google Forms + status {PENDIENTE, CONTACTADO, ADMITIDO, DESCARTADO}, requested_specialty, notes; al admitir se crea el Patient.
-- **`incidents`** (M8): patient_id?, reported_by, type {VIOLENCIA, ABUSO, ACCIDENTE, OTRO_GRAVE}, severity, description, occurred_at, status {ABIERTA, EN_SEGUIMIENTO, CERRADA}. Prioridad alta ⇒ notificación inmediata al administrador.
+| Columna | Tipo | Notas |
+|---|---|---|
+| id | uuid PK | |
+| organization_id | uuid FK → organizations | índice |
+| child_first_name / child_last_name | text | |
+| child_rut | text? | opcional: puede no venir del formulario; obligatorio (aquí o en el DTO de `assign`) para crear el `Patient` |
+| child_birth_date | date? | mismo criterio que `child_rut` |
+| guardian_name / guardian_phone | text | `guardian_phone` es el WhatsApp del apoderado |
+| guardian_email | text? | |
+| requested_specialty | enum `Specialty`? | informativo (§1.2 de `modulo-07-lista-espera.md`); la especialidad real la fija el profesional elegido al asignar |
+| reason | text? | motivo de consulta declarado |
+| sede | text? | texto libre, sin catálogo (§1.3) |
+| status | enum `WaitlistStatus` {PENDIENTE, ASIGNADA, DESCARTADA} | default `PENDIENTE`; `ASIGNADA`/`DESCARTADA` son terminales (§1.1) |
+| assigned_patient_id | uuid? FK → patients | se completa al asignar |
+| assigned_therapy_slot_id | uuid? FK → therapy_slots | se completa al asignar |
+| discard_reason | text? | obligatorio al descartar |
+| resolved_at | timestamptz? | fecha de asignación o descarte |
+| created_at / updated_at | timestamptz | |
 
-## 10. Decisiones de modelado
+## 10. Módulo 8 — entidades implementadas ahora
 
-### 10.1 Email único global (no por organización)
+### `incidents`
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| id | uuid PK | |
+| organization_id | uuid FK → organizations | índice |
+| patient_id | uuid? FK → patients | opcional: un incidente puede no involucrar a un paciente específico |
+| reported_by_id | uuid FK → users | quien reporta (ADMIN o PROFESSIONAL); se deriva del actor autenticado, nunca lo envía el cliente |
+| type | enum `IncidentType` {VIOLENCIA, ABUSO, ACCIDENTE, SITUACION_GRAVE} | |
+| description | text | |
+| occurred_at | timestamptz | fecha y hora en que ocurrió; no puede ser futura |
+| status | enum `IncidentStatus` {ABIERTA, EN_REVISION, CERRADA} | default `ABIERTA`; `CERRADA` es terminal (§1.1 de `modulo-08-incidencias.md`) |
+| created_at / updated_at | timestamptz | |
+
+Sin columna de notas de seguimiento propia (§1.3 de `modulo-08-incidencias.md`): el detalle de
+cada transición de estado vive en `audit_logs` (`old_value`/`new_value`), no en una columna
+redundante del propio `Incident`. El reporte original (type/description/patient_id/occurred_at)
+nunca se modifica tras crearse — solo `status`.
+
+## 11. Decisiones de modelado
+
+### 11.1 Email único global (no por organización)
 El login es `email + password` sin selector de centro. Si un día se necesita que una misma persona exista en dos centros, se introducirá una tabla `memberships` (user ↔ organization N–M) — cambio aditivo que no rompe el contrato actual.
 
-### 10.2 La ficha clínica nunca se sobreescribe, y no es una tabla propia
+### 11.2 La ficha clínica nunca se sobreescribe, y no es una tabla propia
 `evolutions` es estrictamente append-only (sin UPDATE/DELETE en repositorio ni endpoint); `documents` sigue el mismo criterio (Módulo 5). Las correcciones de una evolución se modelan como nueva evolución con referencia `amends_id`. La "ficha clínica" no tiene una tabla `clinical_records` dedicada: `Patient` ya es su identidad natural (una fila por paciente, por construcción) y `Evolution.patientId`/`Document.patientId` la referencian directamente — ver la justificación completa en [modulo-04-fichas-clinicas.md](./modulos/modulo-04-fichas-clinicas.md) §1.1. El enum de confidencialidad se llamaba `EvolutionConfidentiality`; el Módulo 5 lo renombró a `ClinicalConfidentiality` al pasar a ser compartido por `Evolution` y `Document` (evita duplicar un enum idéntico, ver `modulo-05-documentos.md`).
 
-### 10.3 Agenda = plantilla + instancias (implementado, Módulo 3)
+### 11.3 Agenda = plantilla + instancias (implementado, Módulo 3)
 La regla "día/hora/profesional fijos, sin reservas dinámicas" se modela con `therapy_slots` (plantilla semanal administrada solo por ADMIN) y `appointments` (instancias por fecha, generadas on-demand vía `POST /therapy-slots/generate-appointments`; un job semanal automático es una evolución aditiva sobre el mismo caso de uso). Los estados del spec viven en la instancia, con una máquina de estados explícita (terminales: `CANCELADA`, `ATENDIDA`, `NO_ASISTIO`) documentada en [modulo-03-agenda.md](./modulos/modulo-03-agenda.md) §1.1. El flujo WhatsApp (implementado, Módulo 6) muta `status` de la instancia con `confirmed_via=WHATSAPP` — nunca la plantilla — vía `AppointmentsService.applyWhatsAppResponse`, sin reabrir el contrato HTTP de `PATCH /appointments/:id/status` (ver [modulo-06-whatsapp.md](./modulos/modulo-06-whatsapp.md) §1). El vínculo entre una atención y su evolución (`evolutions.appointment_id`) es opcional y tampoco reabre el contrato de `PATCH /appointments/:id/attendance` — ver [modulo-04-fichas-clinicas.md](./modulos/modulo-04-fichas-clinicas.md) §1.2.
 
-### 10.4 Confidencialidad psicológica a nivel de fila (implementado, Módulos 4–5)
+### 11.4 Confidencialidad psicológica a nivel de fila (implementado, Módulos 4–5)
 `ClinicalConfidentiality` (`STANDARD` | `PSYCHOLOGICAL`) se deriva de `specialty` del autor/subidor al crear, nunca del request, tanto en `Evolution` como en `Document`. El filtro se aplica en la capa de aplicación (`EvolutionsService`/`DocumentsService`), no en el repositorio: toda lectura pasa por un mapeo a DTO que redacta el contenido (`observation`/`workPlan`/`amendsId` en evoluciones; `name`/`mimeType`/`sizeBytes` y la descarga misma en documentos) para cualquier actor sin `specialty=PSICOLOGIA` — **incluido `ADMIN`** (ADR-04) — devolviendo solo metadatos (fecha, autor, existencia). La auditoría de un registro `PSYCHOLOGICAL` tampoco incluye ese contenido en `new_value`: la auditoría no es una puerta trasera a lo que la API no expone.
 
-### 10.5 RUT único por organización, no global
-`patients.rut` se valida y desduplica **dentro de cada organización**, no a nivel de plataforma. Dos organizaciones son tenants independientes (ADR-03): un mismo RUT puede existir en ambas sin que constituya un conflicto de negocio, y verificar unicidad cruzando organizaciones exigiría consultas que atraviesan el límite de tenant, lo que el diseño de repositorio evita deliberadamente. Si en el futuro se necesitara identificar a la misma persona en dos centros (por ejemplo, para reportes consolidados de una cadena), se resolvería con una entidad de nivel superior (análoga a la `memberships` de §10.1), no relajando el aislamiento por organización.
+### 11.5 RUT único por organización, no global
+`patients.rut` se valida y desduplica **dentro de cada organización**, no a nivel de plataforma. Dos organizaciones son tenants independientes (ADR-03): un mismo RUT puede existir en ambas sin que constituya un conflicto de negocio, y verificar unicidad cruzando organizaciones exigiría consultas que atraviesan el límite de tenant, lo que el diseño de repositorio evita deliberadamente. Si en el futuro se necesitara identificar a la misma persona en dos centros (por ejemplo, para reportes consolidados de una cadena), se resolvería con una entidad de nivel superior (análoga a la `memberships` de §11.1), no relajando el aislamiento por organización.
+
+### 11.6 Tres estados en la lista de espera, no cuatro (implementado, Módulo 7)
+`WaitlistStatus` es `PENDIENTE | ASIGNADA | DESCARTADA`. Un borrador anterior de este documento (entonces §9) anticipaba un cuarto estado `CONTACTADO`; se descartó por no tener un caso de uso que lo consuma — ver la justificación completa en [modulo-07-lista-espera.md](./modulos/modulo-07-lista-espera.md) §1.1.
 
 ### 10.6 `start_minute` (int) en vez de un tipo `TIME`
 `therapy_slots.start_minute` y `appointments.start_minute` guardan minutos desde medianoche (p. ej. `570` = 09:30) en vez de `@db.Time`. Evita la ambigüedad de zona horaria y de serialización de un tipo `Time` de Prisma (que en JS se representa como `Date` con una fecha base arbitraria), y simplifica la aritmética de solapamiento (`start`, `start + duration`) a comparaciones de enteros. El contrato REST (`@centro/shared`) igualmente expone `"HH:MM"` como string — la conversión vive en la capa de aplicación del módulo Agenda, nunca en `domain` ni en `presentation`.

@@ -18,6 +18,10 @@ import { WhatsappWebhookController } from './presentation/whatsapp-webhook.contr
  * No importa `PatientsModule` (mismo criterio anti-ciclo que `AgendaModule`/`EvolutionsModule`/
  * `DocumentsModule`): resuelve paciente/organización/administradores vía Prisma directamente
  * en los servicios de este módulo.
+ *
+ * `WhatsAppMessagingService` se exporta además para `IncidentsModule` (Módulo 8), que lo
+ * reutiliza para notificar de inmediato a los administradores en vez de una integración nueva
+ * (modulo-08-incidencias.md §1.4).
  */
 @Module({
   imports: [AgendaModule],
@@ -42,5 +46,6 @@ import { WhatsappWebhookController } from './presentation/whatsapp-webhook.contr
       inject: [ConfigService],
     },
   ],
+  exports: [WhatsAppMessagingService],
 })
 export class WhatsappModule {}

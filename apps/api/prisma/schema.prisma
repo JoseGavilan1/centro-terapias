@@ -111,6 +111,23 @@ enum WaitlistStatus {
   @@map("waitlist_status")
 }
 
+enum IncidentType {
+  VIOLENCIA
+  ABUSO
+  ACCIDENTE
+  SITUACION_GRAVE
+
+  @@map("incident_type")
+}
+
+enum IncidentStatus {
+  ABIERTA
+  EN_REVISION
+  CERRADA
+
+  @@map("incident_status")
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -156,6 +173,7 @@ model Organization {
   whatsappMessages      WhatsAppMessage[]
   whatsappConversations WhatsAppConversation[]
   waitlistEntries       WaitlistEntry[]
+  incidents             Incident[]
 
   @@map("organizations")
 }
@@ -186,6 +204,8 @@ model User {
   evolutions                   Evolution[]
   // Documentos subidos por este usuario (siempre PROFESSIONAL).
   uploadedDocuments            Document[]
+  // Incidencias reportadas por este usuario (Módulo 8, ADMIN o PROFESSIONAL).
+  reportedIncidents            Incident[]
 
   @@index([organizationId])
   @@map("users")
@@ -219,6 +239,7 @@ model Patient {
   documents     Document[]
   // Entrada de lista de espera (Módulo 7) que este paciente resolvió, si aplica.
   waitlistEntry WaitlistEntry?
+  incidents     Incident[]
 
   @@unique([organizationId, rut])
   @@index([organizationId])
@@ -432,6 +453,34 @@ model WaitlistEntry {
 
   @@index([organizationId, status])
   @@map("waitlist_entries")
+}
+
+model Incident {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  // Opcional: un incidente puede no involucrar a un paciente específico (p. ej. un accidente en el centro).
+  patientId      String?        @map("patient_id") @db.Uuid
+  // Quien reporta (ADMIN o PROFESSIONAL); nunca lo envía el cliente, se deriva del actor autenticado.
+  reportedById   String         @map("reported_by_id") @db.Uuid
+  type           IncidentType
+  description    String
+  occurredAt     DateTime       @map("occurred_at") @db.Timestamptz(6)
+  // Seguimiento del administrador: el reporte original (type/description/occurredAt/patientId)
+  // nunca se modifica tras crearse, solo status (§1.3 modulo-08-incidencias.md). CERRADA es
+  // terminal — no se reabre (mismo criterio que Módulo 7 §1.1); el detalle de cada transición
+  // vive en audit_logs (old_value/new_value), no en una columna de notas propia.
+  status         IncidentStatus @default(ABIERTA)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  patient      Patient?     @relation(fields: [patientId], references: [id])
+  reportedBy   User         @relation(fields: [reportedById], references: [id])
+
+  @@index([organizationId, status])
+  @@index([organizationId, patientId])
+  @@index([organizationId, reportedById])
+  @@map("incidents")
 }
 
 model RefreshToken {

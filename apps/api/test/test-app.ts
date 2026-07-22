@@ -34,6 +34,7 @@ export async function cleanDatabase(app: INestApplication): Promise<void> {
   const prisma = app.get(PrismaService);
   await prisma.auditLog.deleteMany();
   await prisma.refreshToken.deleteMany();
+  await prisma.incident.deleteMany();
   await prisma.waitlistEntry.deleteMany();
   await prisma.whatsAppMessage.deleteMany();
   await prisma.whatsAppConversation.deleteMany();

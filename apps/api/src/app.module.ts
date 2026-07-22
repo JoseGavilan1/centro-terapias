@@ -14,6 +14,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { EvolutionsModule } from './modules/evolutions/evolutions.module';
 import { HealthController } from './modules/health/health.controller';
+import { IncidentsModule } from './modules/incidents/incidents.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { PatientsModule } from './modules/patients/patients.module';
 import { UsersModule } from './modules/users/users.module';
@@ -39,6 +40,7 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
     DocumentsModule,
     WhatsappModule,
     WaitlistModule,
+    IncidentsModule,
   ],
   controllers: [HealthController],
   providers: [

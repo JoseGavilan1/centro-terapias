@@ -11,3 +11,4 @@ export * from './clinical-records';
 export * from './documents';
 export * from './whatsapp';
 export * from './waitlist';
+export * from './incidents';

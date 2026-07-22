@@ -21,6 +21,7 @@ const schema = z.object({
   email: z.string().email('Correo inválido').optional().or(z.literal('')),
   whatsappPhoneNumberId: z.string().optional(),
   googleFormsUrl: z.string().url('URL inválida').optional().or(z.literal('')),
+  waitlistIntakeToken: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -32,6 +33,7 @@ export default function OrganizationPage() {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
@@ -46,6 +48,7 @@ export default function OrganizationPage() {
         email: organization.email ?? '',
         whatsappPhoneNumberId: organization.whatsappPhoneNumberId ?? '',
         googleFormsUrl: organization.googleFormsUrl ?? '',
+        waitlistIntakeToken: organization.waitlistIntakeToken ?? '',
       });
     }
   }, [organization, reset]);
@@ -60,6 +63,7 @@ export default function OrganizationPage() {
         email: values.email || undefined,
         whatsappPhoneNumberId: values.whatsappPhoneNumberId?.trim() || null,
         googleFormsUrl: values.googleFormsUrl?.trim() || null,
+        waitlistIntakeToken: values.waitlistIntakeToken?.trim() || null,
       });
       toast.success('Datos del centro actualizados');
     } catch {
@@ -122,6 +126,23 @@ export default function OrganizationPage() {
             {errors.googleFormsUrl && (
               <p className="text-sm text-destructive">{errors.googleFormsUrl.message}</p>
             )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="waitlistIntakeToken">Token de ingreso (lista de espera)</Label>
+            <div className="flex gap-2">
+              <Input id="waitlistIntakeToken" readOnly {...register('waitlistIntakeToken')} />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setValue('waitlistIntakeToken', crypto.randomUUID())}
+              >
+                Generar nuevo
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Se pega en el Apps Script del Google Form de admisión. Regenerarlo invalida el
+              anterior — hay que actualizar el script.
+            </p>
           </div>
           <Button type="submit" disabled={isSubmitting} className="mt-2 self-start">
             {isSubmitting ? 'Guardando…' : 'Guardar cambios'}

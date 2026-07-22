@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  AlertTriangle,
   CalendarDays,
+  ClipboardList,
   LayoutDashboard,
   MessageCircle,
   ScrollText,
@@ -28,6 +30,13 @@ const NAV_ITEMS: NavItem[] = [
   // accede en modo solo lectura, filtrado por sus pacientes asignados.
   { href: '/dashboard/pacientes', label: 'Pacientes', icon: UserRound },
   { href: '/dashboard/agenda', label: 'Agenda', icon: CalendarDays },
+  { href: '/dashboard/incidencias', label: 'Incidencias', icon: AlertTriangle },
+  {
+    href: '/dashboard/lista-espera',
+    label: 'Lista de espera',
+    icon: ClipboardList,
+    adminOnly: true,
+  },
   { href: '/dashboard/usuarios', label: 'Usuarios', icon: Users, adminOnly: true },
   { href: '/dashboard/organizacion', label: 'Centro', icon: Settings, adminOnly: true },
   { href: '/dashboard/auditoria', label: 'Auditoría', icon: ScrollText, adminOnly: true },

@@ -298,17 +298,17 @@ campos de WhatsApp ya existentes.
 
 El módulo 7 se considera **terminado** cuando:
 
-- [ ] Migración Prisma aplicada para `waitlist_entries` y `organizations.waitlist_intake_token`.
-- [ ] Webhook `POST /webhooks/waitlist` público, autenticado por token de organización.
-- [ ] CRUD de administración completo: listar/filtrar, crear manual, editar (solo pendiente),
+- [x] Migración Prisma aplicada para `waitlist_entries` y `organizations.waitlist_intake_token`.
+- [x] Webhook `POST /webhooks/waitlist` público, autenticado por token de organización.
+- [x] CRUD de administración completo: listar/filtrar, crear manual, editar (solo pendiente),
       asignar (crea `Patient`+`TherapySlot`), descartar — todos ADMIN.
-- [ ] Compensación implementada y probada si falla la creación del horario tras crear el paciente.
-- [ ] `PATCH /organizations/current` acepta `waitlistIntakeToken`; `OrganizationDto` lo expone.
-- [ ] Todas las reglas de negocio de §1 cubiertas por tests unitarios o e2e; suites en verde.
-- [ ] Frontend operativo: página "Lista de espera", diálogos de asignar/descartar/crear/editar,
+- [x] Compensación implementada y probada si falla la creación del horario tras crear el paciente.
+- [x] `PATCH /organizations/current` acepta `waitlistIntakeToken`; `OrganizationDto` lo expone.
+- [x] Todas las reglas de negocio de §1 cubiertas por tests unitarios o e2e; suites en verde.
+- [x] Frontend operativo: página "Lista de espera", diálogos de asignar/descartar/crear/editar,
       campo de token en "Organización", entrada en el sidebar.
-- [ ] `tsc --noEmit`, ESLint y Prettier sin errores en `apps/api`, `apps/web` y `packages/shared`.
-- [ ] Documentación actualizada: este archivo, `02-modelo-datos.md`, `04-api-rest.md` y
+- [x] `tsc --noEmit`, ESLint y Prettier sin errores en `apps/api`, `apps/web` y `packages/shared`.
+- [x] Documentación actualizada: este archivo, `02-modelo-datos.md`, `04-api-rest.md` y
       `01-arquitectura.md` (tabla de estado del módulo).
 
 Cumplido el DoD, se habilita el inicio del **Módulo 8 · Incidencias**.

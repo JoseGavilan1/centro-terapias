@@ -155,8 +155,8 @@ flowchart TB
 | 4 | Fichas clínicas (append-only + confidencialidad) | Completo |
 | 5 | Documentos (Google Drive) | Completo |
 | 6 | WhatsApp (menú determinista + confirmación 24 h) | Completo |
-| 7 | Lista de espera (Google Forms → admisión) | Pendiente |
-| 8 | Incidencias | Pendiente |
+| 7 | Lista de espera (Google Forms → admisión) | Completo |
+| 8 | Incidencias | Completo |
 | 9 | Reportes | Pendiente |
 | 10 | Dashboard | Pendiente |
 

@@ -198,7 +198,7 @@ El recurso es siempre **`current`** (la organización del token); no existe acce
 
 | | |
 |---|---|
-| Request | `UpdateOrganizationRequest` `{ name?, legalId?, timezone?, address?, phone?, email? }` |
+| Request | `UpdateOrganizationRequest` `{ name?, legalId?, timezone?, address?, phone?, email?, whatsappPhoneNumberId?, googleFormsUrl?, waitlistIntakeToken? }` |
 | Response | `200` `OrganizationDto` |
 | Errores | `400` validación (p. ej. timezone inválida) · `401` · `403` |
 
@@ -478,14 +478,108 @@ Documentos `confidentiality=PSYCHOLOGICAL` viajan redactados (`redacted=true`, `
 
 **Efectos secundarios:** mismo método que el `@Cron` diario (idempotente): busca citas `PENDIENTE` de "mañana" en todas las organizaciones, envía el recordatorio a las que no lo tengan ya y deja la conversación de ese teléfono en `AWAITING_ATTENDANCE_CONFIRMATION`.
 
-## 8. Superficie futura (borrador)
+## 8. Módulo 7 — Lista de espera
+
+> Diseño completo en [modulo-07-lista-espera.md](./modulos/modulo-07-lista-espera.md). Tres estados terminales (`PENDIENTE → ASIGNADA|DESCARTADA`, §1.1); solo ADMIN administra el recurso, no hay vista de `PROFESSIONAL`.
+
+### 8.1 Webhook (`/api/v1/webhooks/waitlist`) — `@Public()`, sin JWT
+
+#### `POST /webhooks/waitlist` — ingreso automático (Google Forms → Apps Script)
+
+| | |
+|---|---|
+| Header | `X-Intake-Token` (token de la organización, `Organization.waitlistIntakeToken`) |
+| Request | `IntakeWaitlistRequest` (idéntico a `CreateWaitlistEntryRequest`, ver §8.2) |
+| Response | `201` `WaitlistEntryDto`, `status=PENDIENTE` |
+| Errores | `401` token ausente o inválido (comparación segura contra `waitlistIntakeToken`) |
+
+### 8.2 Administración (`/api/v1/waitlist`) — ADMIN
+
+#### `GET /waitlist`
+
+| | |
+|---|---|
+| Query | `WaitlistQuery`: `status?`, `requestedSpecialty?`, `page`, `pageSize` |
+| Response | `200` `Paginated<WaitlistEntryDto>`, orden: `PENDIENTE` primero (más antigua primero), luego resueltas por `resolvedAt` descendente |
+| Errores | `401` · `403` |
+
+#### `POST /waitlist` — ingreso manual
+
+| | |
+|---|---|
+| Request | `CreateWaitlistEntryRequest` `{ childFirstName, childLastName, childRut?, childBirthDate?, guardianName, guardianPhone, guardianEmail?, requestedSpecialty?, reason? }` |
+| Response | `201` `WaitlistEntryDto`, `status=PENDIENTE` |
+| Errores | `400` validación · `401` · `403` |
+
+#### `PATCH /waitlist/:id` — editar (solo `PENDIENTE`)
+
+| | |
+|---|---|
+| Request | `UpdateWaitlistEntryRequest` (mismos campos que `Create`, todos opcionales, más `sede?`) |
+| Response | `200` `WaitlistEntryDto` |
+| Errores | `400` · `401` · `403` · `404` · `409` si la entrada ya fue resuelta |
+
+#### `PATCH /waitlist/:id/assign` — crea `Patient` + `TherapySlot`
+
+| | |
+|---|---|
+| Request | `AssignWaitlistEntryRequest` `{ professionalId, weekday, startTime, durationMinutes, validFrom, sede?, rut?, birthDate? }` (`rut`/`birthDate` obligatorios en la práctica si la entrada no los trae) |
+| Response | `200` `WaitlistEntryDto`, `status=ASIGNADA`, `assignedPatientId`/`assignedTherapySlotId` completos |
+| Errores | `400` falta `rut`/`birthDate` · `401` · `403` · `404` · `409` entrada ya resuelta, RUT ya usado por otro paciente, u horario solapado (compensa borrando el `Patient` recién creado, §1.6) |
+
+#### `PATCH /waitlist/:id/discard` — descartar (solo `PENDIENTE`)
+
+| | |
+|---|---|
+| Request | `DiscardWaitlistEntryRequest` `{ reason }` (obligatorio) |
+| Response | `200` `WaitlistEntryDto`, `status=DESCARTADA` |
+| Errores | `400` sin motivo · `401` · `403` · `404` · `409` entrada ya resuelta |
+
+**Efectos secundarios:** toda mutación audita sobre `WaitlistEntry`; `assign` además dispara la auditoría propia de `PatientsService`/`TherapySlotsService` (no se duplica).
+
+## 9. Módulo 8 — Incidencias
+
+> Diseño completo en [modulo-08-incidencias.md](./modulos/modulo-08-incidencias.md). Violencia, abuso, accidentes y situaciones graves, con prioridad alta ⇒ notificación inmediata al administrador (reutiliza el canal WhatsApp del Módulo 6).
+
+### `GET /incidents` — cualquier autenticado
+
+| | |
+|---|---|
+| Query | `IncidentsQuery`: `status?`, `type?`, `patientId?`, `page`, `pageSize` |
+| Response | `200` `Paginated<IncidentDto>`. `ADMIN`: todas las de la organización. `PROFESSIONAL`: solo las que reportó (§1.2) |
+| Errores | `401` |
+
+### `GET /incidents/:id` — cualquier autenticado
+
+| | |
+|---|---|
+| Response | `200` `IncidentDto` |
+| Errores | `401` · `404` (inexistente, o `PROFESSIONAL` pidiendo una que no reportó) |
+
+### `POST /incidents` — ADMIN o PROFESSIONAL
+
+| | |
+|---|---|
+| Request | `CreateIncidentRequest` `{ patientId?, type, description, occurredAt }` |
+| Response | `201` `IncidentDto`, `status=ABIERTA` |
+| Errores | `400` validación · `401` · `404` paciente inexistente, o no asignado si el actor es `PROFESSIONAL` |
+
+### `PATCH /incidents/:id` — solo ADMIN
+
+| | |
+|---|---|
+| Request | `UpdateIncidentStatusRequest` `{ status }` (no admite tocar tipo/descripción/paciente/fecha) |
+| Response | `200` `IncidentDto` |
+| Errores | `400` · `401` · `403` (`PROFESSIONAL`) · `404` · `409` la incidencia ya está `CERRADA` (terminal) |
+
+**Efectos secundarios:** `POST` audita `CREATE` y notifica por WhatsApp a los administradores con teléfono configurado (best-effort, se omite en silencio si la organización no tiene `whatsappPhoneNumberId`); `PATCH` audita `UPDATE` con valor anterior/nuevo completo.
+
+## 10. Superficie futura (borrador)
 
 > **Borrador no vinculante.** Lista de recursos previstos por módulo, solo para reservar nomenclatura y verificar coherencia REST. Rutas, campos, códigos y reglas se cierran en el diseño de cada módulo (regla: no se avanza sin cerrar el anterior).
 
 | Módulo | Recursos previstos (bajo `/api/v1`) | Notas |
 |---|---|---|
-| **7 · Lista de espera** | `GET /waitlist` · `POST /waitlist` (ingreso Forms) · `PATCH /waitlist/:id` · `POST /waitlist/:id/admit` | Admitir crea el `Patient` |
-| **8 · Incidencias** | `GET/POST /incidents` · `GET/PATCH /incidents/:id` | Prioridad alta ⇒ notificación inmediata al administrador |
 | **9 · Reportes** | `GET /reports/summary` · `GET /reports/attendance` · `GET /reports/monthly` | Agregados: pacientes, atenciones, inasistencias, cancelaciones, terapeutas, lista de espera, rendimiento mensual |
 | **10 · Dashboard** | Reutiliza `/reports/*` | Sin superficie propia salvo necesidad detectada en diseño |
 
