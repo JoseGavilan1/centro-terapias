@@ -601,12 +601,8 @@ Documentos `confidentiality=PSYCHOLOGICAL` viajan redactados (`redacted=true`, `
 | Response | `200` `MonthlyReportEntryDto[]`, un elemento por mes (`{ month, totalAppointments, attended, noShow, cancelled, newPatients, newWaitlistEntries }`) |
 | Errores | `400` · `401` · `403` |
 
-## 11. Superficie futura (borrador)
+## 11. Módulo 10 — Dashboard
 
-> **Borrador no vinculante.** Lista de recursos previstos por módulo, solo para reservar nomenclatura y verificar coherencia REST. Rutas, campos, códigos y reglas se cierran en el diseño de cada módulo (regla: no se avanza sin cerrar el anterior).
+> Diseño completo en [modulo-10-dashboard.md](./modulos/modulo-10-dashboard.md). Sin superficie de API propia: la página `/dashboard` reutiliza `GET /reports/summary` (ADMIN), `GET /patients`, `GET /appointments` y `GET /users`, ya documentados en sus módulos de origen (9, 2/3, 3, 1 respectivamente).
 
-| Módulo | Recursos previstos (bajo `/api/v1`) | Notas |
-|---|---|---|
-| **10 · Dashboard** | Reutiliza `/reports/*` | Sin superficie propia salvo necesidad detectada en diseño |
-
-Invariantes que aplicarán a toda la superficie futura: prefijo `/api/v1`, autenticación por cookie/Bearer, `Paginated<T>` en listados, tenant desde el JWT, auditoría de toda mutación y contratos en `@centro/shared`.
+Con el cierre del Módulo 10 se completan los diez módulos del alcance original (`00-analisis.md` §4.1). Invariantes vigentes en toda la superficie: prefijo `/api/v1`, autenticación por cookie/Bearer, `Paginated<T>` en listados, tenant desde el JWT, auditoría de toda mutación y contratos en `@centro/shared`.

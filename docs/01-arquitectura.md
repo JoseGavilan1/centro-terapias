@@ -158,6 +158,6 @@ flowchart TB
 | 7 | Lista de espera (Google Forms → admisión) | Completo |
 | 8 | Incidencias | Completo |
 | 9 | Reportes | Completo |
-| 10 | Dashboard | Pendiente |
+| 10 | Dashboard | Completo |
 
 Regla de trabajo: **no se avanza al módulo siguiente sin cerrar el anterior** (código + tests + documentación).

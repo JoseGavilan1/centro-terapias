@@ -53,7 +53,7 @@ El sistema nace para un centro pero se diseña **multi-tenant desde la primera m
 
 ### 4.1 En alcance (módulos 1–10)
 
-1. Autenticación, usuarios, roles y organizaciones (**en desarrollo**).
+1. Autenticación, usuarios, roles y organizaciones.
 2. Pacientes (CRUD, ficha única).
 3. Agenda: horario fijo por paciente (día/hora/profesional), estados `PENDIENTE, CONFIRMADA, CANCELADA, NO_ASISTIO, SOBRECUPO, ATENDIDA`; solo el administrador la modifica.
 4. Fichas clínicas append-only con confidencialidad por fila.
