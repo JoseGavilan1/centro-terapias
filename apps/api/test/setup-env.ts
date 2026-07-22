@@ -6,10 +6,12 @@
  * ConfigModule) en vez de depender de sintaxis de variables de entorno de
  * shell, que difiere entre bash y PowerShell/cmd.
  */
-// Puerto 5433 (no 5432): ver docker-compose.override.yml — este host ya tenía otro
-// proyecto ocupando 5432. Ajustar si el mapeo de puertos de Postgres cambia.
+// Default: puerto 5432 (el que publica docker-compose.yml tal cual, sin override).
+// Si tu máquina tiene otro Postgres ocupando ese puerto (ver docker-compose.override.yml),
+// exportá TEST_DATABASE_URL con el puerto que corresponda en vez de tocar este archivo.
 process.env.DATABASE_URL =
-  'postgresql://centro:centro_dev@localhost:5433/centro_terapias_test?schema=public';
+  process.env.TEST_DATABASE_URL ??
+  'postgresql://centro:centro_dev@localhost:5432/centro_terapias_test?schema=public';
 
 /**
  * Módulo 5: los e2e usan siempre el doble local-disk (nunca Google Drive real) en un
