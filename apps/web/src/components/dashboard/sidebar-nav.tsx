@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   AlertTriangle,
+  BarChart3,
   CalendarDays,
   ClipboardList,
   LayoutDashboard,
@@ -37,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: ClipboardList,
     adminOnly: true,
   },
+  { href: '/dashboard/reportes', label: 'Reportes', icon: BarChart3, adminOnly: true },
   { href: '/dashboard/usuarios', label: 'Usuarios', icon: Users, adminOnly: true },
   { href: '/dashboard/organizacion', label: 'Centro', icon: Settings, adminOnly: true },
   { href: '/dashboard/auditoria', label: 'Auditoría', icon: ScrollText, adminOnly: true },

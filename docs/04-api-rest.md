@@ -574,13 +574,39 @@ Documentos `confidentiality=PSYCHOLOGICAL` viajan redactados (`redacted=true`, `
 
 **Efectos secundarios:** `POST` audita `CREATE` y notifica por WhatsApp a los administradores con teléfono configurado (best-effort, se omite en silencio si la organización no tiene `whatsappPhoneNumberId`); `PATCH` audita `UPDATE` con valor anterior/nuevo completo.
 
-## 10. Superficie futura (borrador)
+## 10. Módulo 9 — Reportes
+
+> Diseño completo en [modulo-09-reportes.md](./modulos/modulo-09-reportes.md). Agregación de solo lectura sobre `Patient`/`Appointment`/`User`/`WaitlistEntry` — sin entidad ni migración propia. Todos los endpoints `@Roles(ADMIN)`.
+
+### `GET /reports/summary`
+
+| | |
+|---|---|
+| Response | `200` `ReportsSummaryDto` `{ activePatients, activeProfessionals, pendingWaitlistEntries }` |
+| Errores | `401` · `403` |
+
+### `GET /reports/attendance`
+
+| | |
+|---|---|
+| Query | `AttendanceReportQuery`: `from?`, `to?` (ISO `YYYY-MM-DD`; default: mes actual hasta hoy) |
+| Response | `200` `AttendanceReportDto` `{ from, to, total, pending, confirmed, cancelled, noShow, overbooked, attended }` |
+| Errores | `400` · `401` · `403` |
+
+### `GET /reports/monthly`
+
+| | |
+|---|---|
+| Query | `MonthlyReportQuery`: `months?` (entero 1–24, default 6) |
+| Response | `200` `MonthlyReportEntryDto[]`, un elemento por mes (`{ month, totalAppointments, attended, noShow, cancelled, newPatients, newWaitlistEntries }`) |
+| Errores | `400` · `401` · `403` |
+
+## 11. Superficie futura (borrador)
 
 > **Borrador no vinculante.** Lista de recursos previstos por módulo, solo para reservar nomenclatura y verificar coherencia REST. Rutas, campos, códigos y reglas se cierran en el diseño de cada módulo (regla: no se avanza sin cerrar el anterior).
 
 | Módulo | Recursos previstos (bajo `/api/v1`) | Notas |
 |---|---|---|
-| **9 · Reportes** | `GET /reports/summary` · `GET /reports/attendance` · `GET /reports/monthly` | Agregados: pacientes, atenciones, inasistencias, cancelaciones, terapeutas, lista de espera, rendimiento mensual |
 | **10 · Dashboard** | Reutiliza `/reports/*` | Sin superficie propia salvo necesidad detectada en diseño |
 
 Invariantes que aplicarán a toda la superficie futura: prefijo `/api/v1`, autenticación por cookie/Bearer, `Paginated<T>` en listados, tenant desde el JWT, auditoría de toda mutación y contratos en `@centro/shared`.

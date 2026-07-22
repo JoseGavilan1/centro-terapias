@@ -157,7 +157,7 @@ flowchart TB
 | 6 | WhatsApp (menú determinista + confirmación 24 h) | Completo |
 | 7 | Lista de espera (Google Forms → admisión) | Completo |
 | 8 | Incidencias | Completo |
-| 9 | Reportes | Pendiente |
+| 9 | Reportes | Completo |
 | 10 | Dashboard | Pendiente |
 
 Regla de trabajo: **no se avanza al módulo siguiente sin cerrar el anterior** (código + tests + documentación).

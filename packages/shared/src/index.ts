@@ -12,3 +12,4 @@ export * from './documents';
 export * from './whatsapp';
 export * from './waitlist';
 export * from './incidents';
+export * from './reports';
