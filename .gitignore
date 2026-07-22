@@ -1,0 +1,37 @@
+# Dependencias
+node_modules/
+
+# Builds
+dist/
+.next/
+out/
+*.tsbuildinfo
+
+# Entorno (nunca commitear secretos)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Cobertura de tests
+coverage/
+
+# Almacenamiento local de documentos (Módulo 5, driver local-disk; storage-test/ lo usan los e2e)
+storage/
+storage-test/
+
+# Override local de docker-compose (p. ej. cambiar el puerto publicado de Postgres
+# si el 5432 del host ya está ocupado por otro proyecto) — nunca compartido.
+docker-compose.override.yml

@@ -1,0 +1,30 @@
+{
+  "name": "centro-terapias",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plataforma de gestión para centros de terapias infantiles (multi-tenant)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "postinstall": "npm run build -w @centro/shared",
+    "dev": "concurrently -n api,web -c blue,green \"npm run start:dev -w @centro/api\" \"npm run dev -w @centro/web\"",
+    "dev:api": "npm run start:dev -w @centro/api",
+    "dev:web": "npm run dev -w @centro/web",
+    "build": "npm run build -w @centro/shared && npm run build -w @centro/api && npm run build -w @centro/web",
+    "lint": "npm run lint -w @centro/api && npm run lint -w @centro/web",
+    "test": "npm run test -w @centro/api",
+    "test:e2e": "npm run test:e2e -w @centro/api",
+    "db:migrate": "npm run prisma:migrate -w @centro/api",
+    "db:seed": "npm run prisma:seed -w @centro/api",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json,mjs}\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "prettier": "^3.4.2"
+  }
+}

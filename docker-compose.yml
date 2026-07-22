@@ -1,0 +1,24 @@
+# Infraestructura local de desarrollo.
+# Requiere Docker Desktop: https://www.docker.com/products/docker-desktop/
+#   docker compose up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: centro-terapias-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: centro
+      POSTGRES_PASSWORD: centro_dev
+      POSTGRES_DB: centro_terapias
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U centro -d centro_terapias']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

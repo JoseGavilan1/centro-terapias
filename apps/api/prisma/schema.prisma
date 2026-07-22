@@ -1,0 +1,475 @@
+// Módulo 1: organizaciones, usuarios, sesiones (refresh tokens) y auditoría.
+// Módulo 2: pacientes.
+// Módulo 3: agenda (therapy_slots + appointments).
+// Módulo 4: fichas clínicas (evolutions). No existe una tabla clinical_records
+// separada (decisión de diseño, ver docs/modulos/modulo-04-fichas-clinicas.md §1.1).
+// Las entidades de módulos futuros se agregan mediante migraciones incrementales
+// según docs/02-modelo-datos.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  PROFESSIONAL
+
+  @@map("user_role")
+}
+
+enum Specialty {
+  FONOAUDIOLOGIA
+  PSICOLOGIA
+  TERAPIA_OCUPACIONAL
+  KINESIOLOGIA
+  PSICOPEDAGOGIA
+
+  @@map("specialty")
+}
+
+enum Weekday {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+
+  @@map("weekday")
+}
+
+enum AppointmentStatus {
+  PENDIENTE
+  CONFIRMADA
+  CANCELADA
+  NO_ASISTIO
+  SOBRECUPO
+  ATENDIDA
+
+  @@map("appointment_status")
+}
+
+enum ConfirmedVia {
+  WHATSAPP
+  MANUAL
+
+  @@map("confirmed_via")
+}
+
+enum ClinicalConfidentiality {
+  STANDARD
+  PSYCHOLOGICAL
+
+  @@map("clinical_confidentiality")
+}
+
+enum DocumentCategory {
+  INFORME
+  EVOLUCION
+  EXAMEN
+  RECETA
+  OTRO
+
+  @@map("document_category")
+}
+
+enum WhatsAppMessageDirection {
+  INBOUND
+  OUTBOUND
+
+  @@map("whatsapp_message_direction")
+}
+
+enum WhatsAppMessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+
+  @@map("whatsapp_message_status")
+}
+
+enum WhatsAppConversationStep {
+  IDLE
+  AWAITING_MENU_CHOICE
+  AWAITING_ATTENDANCE_CONFIRMATION
+
+  @@map("whatsapp_conversation_step")
+}
+
+enum WaitlistStatus {
+  PENDIENTE
+  ASIGNADA
+  DESCARTADA
+
+  @@map("waitlist_status")
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  TOKEN_REFRESH
+  TOKEN_REUSE_DETECTED
+  PASSWORD_CHANGE
+  PASSWORD_RESET
+
+  @@map("audit_action")
+}
+
+model Organization {
+  id                    String   @id @default(uuid()) @db.Uuid
+  name                  String
+  legalId               String?  @map("legal_id")
+  timezone              String   @default("America/Santiago")
+  address               String?
+  phone                 String?
+  email                 String?
+  isActive              Boolean  @default(true) @map("is_active")
+  // Módulo 6: identifica qué organización recibe un webhook entrante de Meta (metadata.phone_number_id).
+  // Único globalmente porque un número de WhatsApp Business solo puede pertenecer a una cuenta.
+  whatsappPhoneNumberId String?  @unique @map("whatsapp_phone_number_id")
+  // Módulo 6: enlace de admisión enviado a "Paciente nuevo" en el menú de WhatsApp.
+  googleFormsUrl        String?  @map("google_forms_url")
+  // Módulo 7: autentica el webhook de ingreso a la lista de espera (ver
+  // modulo-07-lista-espera.md §1.4). Único globalmente, mismo criterio que whatsappPhoneNumberId.
+  waitlistIntakeToken   String?  @unique @map("waitlist_intake_token")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users                 User[]
+  patients              Patient[]
+  auditLogs             AuditLog[]
+  therapySlots          TherapySlot[]
+  appointments          Appointment[]
+  evolutions            Evolution[]
+  documents             Document[]
+  whatsappMessages      WhatsAppMessage[]
+  whatsappConversations WhatsAppConversation[]
+  waitlistEntries       WaitlistEntry[]
+
+  @@map("organizations")
+}
+
+model User {
+  id                 String     @id @default(uuid()) @db.Uuid
+  organizationId     String     @map("organization_id") @db.Uuid
+  email              String     @unique
+  passwordHash       String     @map("password_hash")
+  firstName          String     @map("first_name")
+  lastName           String     @map("last_name")
+  role               UserRole
+  specialty          Specialty?
+  phone              String?
+  isActive           Boolean    @default(true) @map("is_active")
+  mustChangePassword Boolean    @default(false) @map("must_change_password")
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization                 Organization   @relation(fields: [organizationId], references: [id])
+  refreshTokens                RefreshToken[]
+  therapySlots                 TherapySlot[]
+  // Citas donde este usuario es el profesional tratante.
+  appointments                 Appointment[]  @relation("AppointmentProfessional")
+  // Citas cuya asistencia marcó este usuario (profesional o admin).
+  attendanceMarkedAppointments Appointment[]  @relation("AppointmentAttendanceMarkedBy")
+  // Evoluciones clínicas escritas por este usuario (siempre PROFESSIONAL).
+  evolutions                   Evolution[]
+  // Documentos subidos por este usuario (siempre PROFESSIONAL).
+  uploadedDocuments            Document[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+model Patient {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  firstName      String   @map("first_name")
+  lastName       String   @map("last_name")
+  // Formato canónico "XXXXXXXX-Y" (ver packages/shared/src/rut.ts). Único por
+  // organización, no global: dos organizaciones distintas pueden compartir un RUT.
+  rut            String
+  birthDate      DateTime @map("birth_date") @db.Date
+  diagnosis      String?
+  // WhatsApp del apoderado; canal principal del Módulo 6.
+  phone          String
+  email          String?
+  address        String?
+  observations   String?
+  isActive       Boolean  @default(true) @map("is_active")
+  // NULL hasta que el Módulo 5 (Documentos) cree la carpeta en Google Drive.
+  driveFolderId  String?  @map("drive_folder_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  therapySlots  TherapySlot[]
+  appointments  Appointment[]
+  evolutions    Evolution[]
+  documents     Document[]
+  // Entrada de lista de espera (Módulo 7) que este paciente resolvió, si aplica.
+  waitlistEntry WaitlistEntry?
+
+  @@unique([organizationId, rut])
+  @@index([organizationId])
+  @@index([organizationId, phone])
+  @@map("patients")
+}
+
+model TherapySlot {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  patientId       String    @map("patient_id") @db.Uuid
+  professionalId  String    @map("professional_id") @db.Uuid
+  weekday         Weekday
+  // Minutos desde 00:00 (p. ej. 570 = 09:30). Ver docs/02-modelo-datos.md §10.6.
+  startMinute     Int       @map("start_minute")
+  durationMinutes Int       @map("duration_minutes")
+  validFrom       DateTime  @map("valid_from") @db.Date
+  validTo         DateTime? @map("valid_to") @db.Date
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  patient       Patient        @relation(fields: [patientId], references: [id])
+  professional  User           @relation(fields: [professionalId], references: [id])
+  appointments  Appointment[]
+  // Entrada de lista de espera (Módulo 7) que este slot resolvió, si aplica.
+  waitlistEntry WaitlistEntry?
+
+  @@index([organizationId, professionalId])
+  @@index([organizationId, patientId])
+  @@map("therapy_slots")
+}
+
+model Appointment {
+  id                   String            @id @default(uuid()) @db.Uuid
+  organizationId       String            @map("organization_id") @db.Uuid
+  // NULL = sobrecupo (creada sin plantilla).
+  therapySlotId        String?           @map("therapy_slot_id") @db.Uuid
+  patientId            String            @map("patient_id") @db.Uuid
+  professionalId       String            @map("professional_id") @db.Uuid
+  date                 DateTime          @db.Date
+  // Snapshot del horario de la plantilla al generar/crear; no se recalcula si el slot cambia después.
+  startMinute          Int               @map("start_minute")
+  durationMinutes      Int               @map("duration_minutes")
+  status               AppointmentStatus
+  confirmedVia         ConfirmedVia?     @map("confirmed_via")
+  notes                String?
+  attendanceMarkedById String?           @map("attendance_marked_by_id") @db.Uuid
+  attendanceMarkedAt   DateTime?         @map("attendance_marked_at") @db.Timestamptz(6)
+  createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization       Organization      @relation(fields: [organizationId], references: [id])
+  therapySlot        TherapySlot?      @relation(fields: [therapySlotId], references: [id])
+  patient            Patient           @relation(fields: [patientId], references: [id])
+  professional       User              @relation("AppointmentProfessional", fields: [professionalId], references: [id])
+  attendanceMarkedBy User?             @relation("AppointmentAttendanceMarkedBy", fields: [attendanceMarkedById], references: [id])
+  // Evolución clínica que esta atención originó (Módulo 4, vínculo opcional — ver
+  // docs/modulos/modulo-04-fichas-clinicas.md §1.2). Nunca se crea desde este módulo.
+  evolution          Evolution?
+  // Recordatorios y respuestas de WhatsApp asociados a esta cita (Módulo 6).
+  whatsappMessages   WhatsAppMessage[]
+
+  @@unique([therapySlotId, date])
+  @@index([organizationId, professionalId, date])
+  @@index([organizationId, patientId, date])
+  @@index([organizationId, date])
+  @@map("appointments")
+}
+
+model Evolution {
+  id              String                  @id @default(uuid()) @db.Uuid
+  organizationId  String                  @map("organization_id") @db.Uuid
+  patientId       String                  @map("patient_id") @db.Uuid
+  authorId        String                  @map("author_id") @db.Uuid
+  // Cita ATENDIDA que originó esta evolución (opcional, ver ADR de módulo §1.2). Única: a lo
+  // sumo una evolución por cita.
+  appointmentId   String?                 @unique @map("appointment_id") @db.Uuid
+  // Evolución que esta corrige (append-only: nunca se sobreescribe, se enlaza una nueva).
+  amendsId        String?                 @map("amends_id") @db.Uuid
+  date            DateTime                @db.Date
+  observation     String
+  workPlan        String                  @map("work_plan")
+  // Derivado de authorId.specialty al crear (nunca lo envía el cliente); política de acceso
+  // en la capa de aplicación (ADR-04): solo PROFESSIONAL con specialty=PSICOLOGIA lee
+  // observation/workPlan de una evolución PSYCHOLOGICAL.
+  confidentiality ClinicalConfidentiality
+  // Append-only real: no existe @updatedAt ni método update() en el repositorio (mismo
+  // criterio que AuditLog).
+  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  patient      Patient      @relation(fields: [patientId], references: [id])
+  author       User         @relation(fields: [authorId], references: [id])
+  appointment  Appointment? @relation(fields: [appointmentId], references: [id])
+  amends       Evolution?   @relation("EvolutionAmends", fields: [amendsId], references: [id])
+  amendedBy    Evolution[]  @relation("EvolutionAmends")
+  documents    Document[]
+
+  @@index([organizationId, patientId, date])
+  @@index([organizationId, authorId])
+  @@map("evolutions")
+}
+
+model Document {
+  id              String                  @id @default(uuid()) @db.Uuid
+  organizationId  String                  @map("organization_id") @db.Uuid
+  patientId       String                  @map("patient_id") @db.Uuid
+  // No es único: una evolución puede tener varios documentos adjuntos (a diferencia de
+  // Evolution.appointmentId, que sí es 1:1 con la cita).
+  evolutionId     String?                 @map("evolution_id") @db.Uuid
+  uploadedById    String                  @map("uploaded_by_id") @db.Uuid
+  category        DocumentCategory
+  name            String
+  mimeType        String                  @map("mime_type")
+  sizeBytes       Int                     @map("size_bytes")
+  // Id opaco devuelto por el adaptador de DocumentStoragePort activo (Google Drive en
+  // producción, disco local en desarrollo/test) — nunca el binario (ADR-11).
+  driveFileId     String                  @map("drive_file_id")
+  // Derivado de uploadedBy.specialty al subir; mismo criterio que Evolution.confidentiality.
+  confidentiality ClinicalConfidentiality
+  // Append-only real: no existe @updatedAt ni update()/delete() en el repositorio.
+  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  patient      Patient      @relation(fields: [patientId], references: [id])
+  evolution    Evolution?   @relation(fields: [evolutionId], references: [id])
+  uploadedBy   User         @relation(fields: [uploadedById], references: [id])
+
+  @@index([organizationId, patientId, category])
+  @@index([organizationId, evolutionId])
+  @@map("documents")
+}
+
+model WhatsAppMessage {
+  id                String                   @id @default(uuid()) @db.Uuid
+  organizationId    String                   @map("organization_id") @db.Uuid
+  direction         WhatsAppMessageDirection
+  phone             String
+  // null en mensajes entrantes (texto libre del paciente, siempre interpretado por dígito, nunca por IA).
+  templateKey       String?                  @map("template_key")
+  body              String
+  appointmentId     String?                  @map("appointment_id") @db.Uuid
+  status            WhatsAppMessageStatus    @default(QUEUED)
+  providerMessageId String?                  @map("provider_message_id")
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  // A diferencia de Evolution/Document, sí se actualiza: SENT -> DELIVERED/FAILED (operativo, no clínico).
+  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  appointment  Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@index([organizationId, createdAt])
+  // Consulta de idempotencia del recordatorio (modulo-06-whatsapp.md CU-02): ¿ya existe un
+  // ATTENDANCE_REMINDER para esta cita?
+  @@index([appointmentId, templateKey])
+  @@map("whatsapp_messages")
+}
+
+model WhatsAppConversation {
+  id             String                   @id @default(uuid()) @db.Uuid
+  organizationId String                   @map("organization_id") @db.Uuid
+  phone          String
+  currentStep    WhatsAppConversationStep @default(IDLE) @map("current_step")
+  // p. ej. { "appointmentId": "..." } en AWAITING_ATTENDANCE_CONFIRMATION.
+  context        Json?
+  // Vencida => se trata como IDLE (modulo-06-whatsapp.md §1: no se interpreta una respuesta
+  // vieja fuera de contexto).
+  expiresAt      DateTime                 @map("expires_at") @db.Timestamptz(6)
+  createdAt      DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, phone])
+  @@map("whatsapp_conversations")
+}
+
+model WaitlistEntry {
+  id                    String         @id @default(uuid()) @db.Uuid
+  organizationId        String         @map("organization_id") @db.Uuid
+  childFirstName        String         @map("child_first_name")
+  childLastName         String         @map("child_last_name")
+  // Opcional: el formulario puede no pedirlo; se exige al asignar si sigue faltando
+  // (ver modulo-07-lista-espera.md CU-04).
+  childRut              String?        @map("child_rut")
+  childBirthDate        DateTime?      @map("child_birth_date") @db.Date
+  guardianName          String         @map("guardian_name")
+  // WhatsApp del apoderado; se vuelca a Patient.phone al asignar (Módulo 6).
+  guardianPhone         String         @map("guardian_phone")
+  guardianEmail         String?        @map("guardian_email")
+  // Informativo (§1.2): la especialidad real queda fijada por el profesional elegido al asignar.
+  requestedSpecialty    Specialty?     @map("requested_specialty")
+  reason                String?
+  // Texto libre, no una entidad Location (§1.3 de modulo-07-lista-espera.md).
+  sede                  String?
+  status                WaitlistStatus @default(PENDIENTE)
+  // Únicos: a lo sumo una entrada resuelve a un Patient/TherapySlot dado.
+  assignedPatientId     String?        @unique @map("assigned_patient_id") @db.Uuid
+  assignedTherapySlotId String?        @unique @map("assigned_therapy_slot_id") @db.Uuid
+  discardReason         String?        @map("discard_reason")
+  // Momento en que pasó a ASIGNADA o DESCARTADA (null mientras está PENDIENTE).
+  resolvedAt            DateTime?      @map("resolved_at") @db.Timestamptz(6)
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  assignedPatient     Patient?     @relation(fields: [assignedPatientId], references: [id])
+  assignedTherapySlot TherapySlot? @relation(fields: [assignedTherapySlotId], references: [id])
+
+  @@index([organizationId, status])
+  @@map("waitlist_entries")
+}
+
+model RefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  replacedById String?   @map("replaced_by_id") @db.Uuid
+  createdByIp  String?   @map("created_by_ip")
+  userAgent    String?   @map("user_agent")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id             String      @id @default(uuid()) @db.Uuid
+  // Nullable: eventos de seguridad sin tenant resoluble (p. ej. login fallido
+  // con un email que no existe) igual deben auditarse (ver AuthService.login).
+  organizationId String?     @map("organization_id") @db.Uuid
+  userId         String?     @map("user_id") @db.Uuid
+  userEmail      String?     @map("user_email")
+  action         AuditAction
+  entity         String
+  entityId       String?     @map("entity_id")
+  oldValue       Json?       @map("old_value")
+  newValue       Json?       @map("new_value")
+  ip             String?
+  userAgent      String?     @map("user_agent")
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
