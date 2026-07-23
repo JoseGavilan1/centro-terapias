@@ -1,0 +1,4 @@
+{
+  "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
+  "crons": [{ "path": "/api/v1/cron/whatsapp-reminders", "schedule": "0 12 * * *" }]
+}

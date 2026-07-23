@@ -117,6 +117,10 @@ class EnvironmentVariables {
     message: 'WHATSAPP_VERIFY_TOKEN es obligatoria con MESSAGING_DRIVER=whatsapp-cloud-api',
   })
   WHATSAPP_VERIFY_TOKEN?: string;
+
+  @IsOptional()
+  @IsString()
+  CRON_SECRET?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

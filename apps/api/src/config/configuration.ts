@@ -33,6 +33,8 @@ export interface AppConfig {
     /** Responde el handshake `GET /webhooks/whatsapp` de Meta. */
     verifyToken: string;
   };
+  /** Secreto compartido para el trigger externo del barrido de recordatorios (Vercel Cron u otro scheduler). Vacío: el endpoint rechaza toda solicitud. */
+  cronSecret: string;
 }
 
 export default (): AppConfig => ({
@@ -69,4 +71,5 @@ export default (): AppConfig => ({
     appSecret: process.env.WHATSAPP_APP_SECRET ?? '',
     verifyToken: process.env.WHATSAPP_VERIFY_TOKEN ?? '',
   },
+  cronSecret: process.env.CRON_SECRET ?? '',
 });

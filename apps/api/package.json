@@ -5,6 +5,7 @@
   "description": "API REST del centro de terapias (NestJS + Prisma)",
   "scripts": {
     "build": "nest build",
+    "vercel-build": "prisma generate && nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
@@ -36,6 +37,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "cookie-parser": "^1.4.7",
+    "express": "^5.2.1",
     "helmet": "^8.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"

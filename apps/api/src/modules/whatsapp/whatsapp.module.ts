@@ -12,6 +12,7 @@ import { PrismaWhatsAppConversationRepository } from './infrastructure/prisma-wh
 import { PrismaWhatsAppMessageRepository } from './infrastructure/prisma-whatsapp-message.repository';
 import { WhatsAppCloudApiAdapter } from './infrastructure/whatsapp-cloud-api.adapter';
 import { WhatsappController } from './presentation/whatsapp.controller';
+import { WhatsappCronController } from './presentation/whatsapp-cron.controller';
 import { WhatsappWebhookController } from './presentation/whatsapp-webhook.controller';
 
 /**
@@ -20,12 +21,11 @@ import { WhatsappWebhookController } from './presentation/whatsapp-webhook.contr
  * en los servicios de este módulo.
  *
  * `WhatsAppMessagingService` se exporta además para `IncidentsModule` (Módulo 8), que lo
- * reutiliza para notificar de inmediato a los administradores en vez de una integración nueva
- * (modulo-08-incidencias.md §1.4).
+ * reutiliza para notificar administradores sin duplicar el envío/registro de mensajes.
  */
 @Module({
   imports: [AgendaModule],
-  controllers: [WhatsappWebhookController, WhatsappController],
+  controllers: [WhatsappWebhookController, WhatsappController, WhatsappCronController],
   providers: [
     WhatsAppMessagingService,
     WhatsAppConversationService,
